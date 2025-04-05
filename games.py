@@ -62,7 +62,7 @@ app.layout = dbc.Container([
 )
 def update_graphs(selected_genre):
     # Filter data by genre if selected
-    filtered = df[df['Genres'].str.contains(selected_genre, na=False)] if selected_genre else df
+    filtered = df[df['Genres'].str.contains(selected_genre, na=False)] if selected_genre else df``
 
     # ---- Chart 1: Top 10 by Avg Playtime ----
     playtime = filtered[['Name', 'Average playtime forever']].dropna()
