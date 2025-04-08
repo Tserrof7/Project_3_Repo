@@ -3,12 +3,20 @@ import pandas as pd
 from dash import Dash, dcc, html, Input, Output, callback
 import dash_bootstrap_components as dbc
 import plotly.express as px
+import pandas as pd
 
 def run_query(query):
     conn = sqlite3.connect("archive/revenue.sqlite")
     df = pd.read_sql_query(query, conn)
     conn.close()
     return df
+
+
+query = "SELECT * FROM revenue_data"
+
+df['revenue'] = pd.to_numeric(df['revenue'], errors='coerce').astype(float)
+df.dropna(subset=['revenue'], inplace=True)
+##Update the query names##
 
 free_paid_df = run_query("""SELECT
     CASE 
@@ -79,11 +87,42 @@ ORDER BY
         WHEN '100+ hrs' THEN 6
     END""")
 
+
 publishers_df = run_query("""SELECT publishers, AVG(revenue) AS avg_revenue, COUNT(*) AS game_count FROM revenue_data GROUP BY publishers ORDER BY avg_revenue DESC""")
+
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP],
            suppress_callback_exceptions=True)
 app.title = "Steam Analysis Dashboard"
+
+def create_revenue_dropdown():
+    return dcc.Dropdown(
+        id='revenue-dropdown',
+        options=[
+            {'label': '0-200M', 'value': '0-200'},
+            {'label': '200M-400M', 'value': '200-400'},
+            {'label': '400M-600M', 'value': '400-600'},
+            {'label': '600-800M', 'value': '600-800'},
+            {'label': '800M+', 'value': '800+'}
+        ],
+        value='0-200',
+        placeholder="Select Revenue Range"
+    )
+
+
+def filter_by_revenue(df, revenue_range):
+    if revenue_range == '0-200':
+        return df[(df['revenue'] >= 0) & (df['revenue'] <= 200000000)]
+    elif revenue_range == '200-400':
+        return df[(df['revenue'] > 200000000) & (df['revenue'] <= 400000000)]
+    elif revenue_range == '400-600':
+        return df[(df['revenue'] > 400000000) & (df['revenue'] <= 600000000)]
+    elif revenue_range == '600-800':
+        return df[(df['revenue'] > 600000000) & (df['revenue'] <= 800000000)]
+    elif revenue_range == '800+':
+        return df[df['revenue'] > 800000000]
+    else:
+        return df  
 
 app.layout = html.Div([
     html.H1("Steam Analysis Dashboard", className="text-center my-4"),
@@ -143,6 +182,23 @@ def render_content(tab):
                 ])
             ], className="mb-4"),
 
+            dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader('Top Revenue Games'),
+                dbc.CardBody([
+                    html.Label(“Filter by Revenue:“),
+                    create_revenue_dropdown(),
+                    dcc.Graph(id=‘revenue-bar’, style={‘height’: ’100%’, ‘width’: ’100%’})
+                ])
+            ], className=“mb-4”, style={‘width’: ’100%’, ‘max-height’: ’100%’})
+        ], width=11),
+        dbc.Col([], width=7),
+    ], className=“d-flex flex-wrap”,
+        justify=“center”),
+
+            
+
             dbc.Card([
                 dbc.CardHeader("Monthly Average Revenue"),
                 dbc.CardBody([
@@ -177,6 +233,63 @@ def update_free_paid(metric):
     )
     return fig
 
+# CALLBACK: Update two graphs based on selected genre
+@app.callback(
+    [Output('playtime-bar', 'figure'),  # Graph 1
+    Output('year-line', 'figure')],    # Graph 2
+    [Input('genre-dropdown', 'value')]  # Triggered when genre is selected
+)
+def update_graphs(selected_genre):
+    # Filter the dataset if a genre is selected
+    filtered = df[df['Genres'].str.contains(selected_genre, na=False)] if selected_genre else df
 
+    # 1️ Top 10 Most-Played Games
+    playtime = filtered[['Name', 'Average playtime forever']].dropna()
+    playtime = playtime[playtime['Average playtime forever'] > 0]
+    top10 = playtime.sort_values('Average playtime forever', ascending=False).head(10)
+
+    fig1 = px.bar(
+        top10,
+        x='Average playtime forever',
+        y='Name',
+        orientation='h',
+        title="Top 10 Most-Played Games"
+    )
+    fig1.update_layout(xaxis_title="Minutes", yaxis_title="Game",
+                    yaxis={'categoryorder': 'total ascending'})
+
+    # 2️ Games Released per Year
+    year_count = filtered['Year'].value_counts().reset_index()
+    year_count.columns = ['Year', 'Count']
+    year_count = year_count.sort_values('Year')
+
+    fig2 = px.line(
+        year_count,
+        x='Year',
+        y='Count',
+        title='Games Released by Year'
+    )
+    fig2.update_layout(xaxis_title="Year", yaxis_title="Games")
+
+    return fig1, fig2
+
+
+# CALLBACK: Update revenue bar chart
+@app.callback(
+    Output('revenue-bar', 'figure'),
+    Input('revenue-dropdown', 'value')
+)
+def update_revenue_bar(selected_revenue):
+    filtered_df = filter_by_revenue(df, selected_revenue)
+    top10_revenue = filtered_df.sort_values('revenue', ascending=False).head(10)
+    fig7 = px.bar(top10_revenue, x='revenue', y='name',  orientation='h', title='Top 10 Games by Revenue',
+            labels={'revenue': 'Revenue', 'name': 'Game Title'},
+            hover_data = ['name','price','revenue'])
+    fig7.update_layout(yaxis={'categoryorder': 'total ascending'},  
+                    height=600,)
+    return fig7
+
+
+# Run the app in Jupyter Notebook (use "external" to see it in a  browser or "inline" to run it within the notbook)vbnbm./
 if __name__ == '__main__':
     app.run(debug=True)
