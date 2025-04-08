@@ -104,7 +104,7 @@ top_publishers = run_query("""
 """)
 
 # Data cleaning
-df_3['revenue'] = pd.to_numeric(df['revenue'], errors='coerce').astype(float)
+df_3['revenue'] = pd.to_numeric(df_3['revenue'], errors='coerce').astype(float)
 df_3.dropna(subset=['revenue'], inplace=True)
 
 # Get genre list for dropdown
@@ -174,94 +174,60 @@ app.layout = html.Div([
 def render_content(tab):
     if tab == 'tab-1':
         return html.Div([
-            dbc.Row([
-                dbc.Col([
-                html.Label("Filter by Genre:"),
-                dcc.Dropdown(
-                id='genre-dropdown',
-                options=[{'label': g, 'value': g} for g in genre_list],
-                placeholder="Select genre"
-            )
-            ], width=3),
-                dbc.Col([
-                    dbc.Card([dbc.CardBody([dcc.Graph(id='playtime-bar', style={'height': '450px'})])], className="mb-4"),
-                    dbc.Card([dbc.CardBody([dcc.Graph(id='year-line', style={'height': '400px'})])], className="mb-4"),
-                    dbc.Card([dbc.CardBody([dcc.Graph(figure=fig4, style={'height': '450px'})])], className="mb-4"),
-
-                    # Radio + pie chart
-                    dbc.Card([
-                        dbc.CardBody([
-                            html.Label("Pie Chart Metric:"),
-                            dcc.RadioItems(
-                                id='pie-radio',
-                                options=[
-                                    {'label': 'Average Playtime', 'value': 'avg'},
-                                    {'label': 'Total Playtime', 'value': 'sum'},
-                                    {'label': 'Game Count', 'value': 'count'}
-                                ],
-                                value='avg',
-                                inline=True,
-                                style={"marginBottom": "1rem"}
-                            ),
-                            dcc.Graph(id='genre-pie', style={'height': '400px'})
-                        ])
-                    ], className="mb-4")
-                ], width=12)  
-            ])
-        ])
-    elif tab == 'tab-2':
-        return html.Div([
-            dbc.Row([
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardHeader('Free vs Paid to Play Games'),
-                        dbc.CardBody([
-                            dcc.Dropdown(
-                                id="dropdown-free-paid",
-                                options=[
-                                    {"label": "Average Revenue", "value": "avg_revenue"},
-                                    {"label": "Average Copies Sold", "value": "avg_copies_sold"},
-                                    {"label": "Average Playtime", "value": "avg_playtime"},
-                                    {"label": "Average Review Score", "value": "avg_review_score"},
-                                ],
-                                value="avg_revenue",
-                                clearable=False
-                            ),
-                            dcc.Graph(id="graph-free-paid")
-                        ])
-                    ], className="mb-4", style={'width': '100%', 'max-height': '100%'}),  # Added style
-                ], width=6),  # Adjusted width
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardHeader("Playtime Analysis"),
-                        dbc.CardBody([
-                            dcc.Graph(
-                                id="playtime-analysis-graph",
-                                figure=px.bar(
-                                    playtime_df,
-                                    x="playtime_bucket",
-                                    y="avg_revenue",
-                                    title="Average Revenue by Playtime",
-                                    labels={"playtime_bucket": "Playtime", "avg_revenue": "Average Revenue"}
-                                )
-                            )
-                        ])
-                    ], className="mb-4", style={'width': '100%', 'max-height': '100%'}),  # Added style
-                ], width=6),  # Adjusted width
-            ]),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardHeader('Top Revenue Games'),
-                        dbc.CardBody([
-                            html.Label("Filter by Revenue:"),
-                            create_revenue_dropdown(),
-                            dcc.Graph(id='revenue-bar', style={'height': '100%', 'width': '100%'})
-                        ])
-                    ], className="mb-4", style={'width': '100%', 'max-height': '100%'}),
-                ], width=12),  # Adjusted width
-            ], className="d-flex flex-wrap",
-                justify="center"),
+    dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader('Free vs Paid to Play Games'),
+                dbc.CardBody([
+                    dcc.Dropdown(
+                        id="dropdown-free-paid",
+                        options=[
+                            {"label": "Average Revenue", "value": "avg_revenue"},
+                            {"label": "Average Copies Sold", "value": "avg_copies_sold"},
+                            {"label": "Average Playtime", "value": "avg_playtime"},
+                            {"label": "Average Review Score", "value": "avg_review_score"},
+                        ],
+                        value="avg_revenue",
+                        clearable=False
+                    ),
+                    dcc.Graph(id="graph-free-paid")
+                ])
+            ], className="mb-4", style={'width': '100%', 'max-height': '100%'}),
+        ], width=12),
+    ]),
+    dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader("Playtime Analysis"),
+                dbc.CardBody([
+                    dcc.Graph(
+                        id="playtime-analysis-graph",
+                        figure=px.bar(
+                            playtime_df,
+                            x="playtime_bucket",
+                            y="avg_revenue",
+                            title="Average Revenue by Playtime",
+                            labels={"playtime_bucket": "Playtime", "avg_revenue": "Average Revenue"}
+                        )
+                    )
+                ])
+            ], className="mb-4", style={'width': '100%', 'max-height': '100%'}),
+        ], width=12),
+    ]),
+    dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader('Top Revenue Games'),
+                dbc.CardBody([
+                    html.Label("Filter by Revenue:"),
+                    create_revenue_dropdown(),
+                    dcc.Graph(id='revenue-bar', style={'height': '100%', 'width': '100%'})
+                ])
+            ], className="mb-4", style={'width': '100%', 'max-height': '100%'}),
+        ], width=12),
+    ], className="d-flex flex-wrap", justify="center"),
+    dbc.Row([
+        dbc.Col([
             dbc.Card([
                 dbc.CardHeader("Monthly Average Revenue"),
                 dbc.CardBody([
@@ -278,7 +244,10 @@ def render_content(tab):
                     )
                 ])
             ], className="mb-4")
-        ])
+        ], width=12)
+    ]),
+])
+
 # Callback to update bar and line charts based on selected genre
 @app.callback(
     [Output('playtime-bar', 'figure'),
