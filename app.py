@@ -1,134 +1,26 @@
 import sqlite3
 import pandas as pd
-from dash import Dash, dcc, html, Input, Output
+from dash import Dash, dcc, html, Input, Output, callback
 import dash_bootstrap_components as dbc
 import plotly.express as px
 
 # Function to run SQL queries
-def run_query(query):
-    with sqlite3.connect("Steam_Games_db.sqlite") as conn:
-        return pd.read_sql_query(query, conn)
+def run_query(query_1):
+    with sqlite3.connect("Steam_Games_db.sqlite") as conn_1:
+        return pd.read_sql_query(query_1, conn_1)
 
-# Get genre list for dropdown
-genres_df = run_query("SELECT Genres FROM general_info")
-genres_df['Genres'] = genres_df['Genres'].fillna("Unknown")
-genre_list = sorted({g.strip() for genre in genres_df['Genres'] for g in str(genre).split(',')})
+def run_query(query_2):
+    conn_2 = sqlite3.connect("archive/revenue.sqlite")
+    df_2 = pd.read_sql_query(query_2, conn_2)
+    conn_2.close()
+    return df_2
 
-# Static chart: Top publishers by user score
-top_publishers = run_query("""
-    SELECT Publishers, AVG(CAST([User score] AS FLOAT)) AS avg_score
-    FROM general_info
-    WHERE [User score] IS NOT NULL
-    GROUP BY Publishers
-    ORDER BY avg_score DESC
-    LIMIT 10
-""")
+sqlite_file_3 = 'revenue.sqlite'
+conn_3 = sqlite3.connect(sqlite_file_3)
+query_3 = "SELECT * FROM revenue_data"
+df_3 = pd.read_sql_query(query_3, conn_3)
+conn_3.close()
 
-fig4 = px.bar(
-    top_publishers, x="Publishers", y="avg_score", title="Top 10 Publishers by Avg User Score"
-).update_layout(
-    xaxis_title="Publisher", yaxis_title="Score", xaxis_tickangle=-45
-)
-
-# Dash app setup
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-app.title = "Steam Game Visualizations"
-
-# Layout
-app.layout = dbc.Container([
-    html.H1("Steam Games Dashboard", className="text-center my-4"),
-
-    dbc.Row([
-        # Left column: genre dropdown
-        dbc.Col([
-            html.Label("Filter by Genre:"),
-            dcc.Dropdown(
-                id='genre-dropdown',
-                options=[{'label': g, 'value': g} for g in genre_list],
-                placeholder="Select genre"
-            )
-        ], width=3),
-
-        # Right column: charts
-        dbc.Col([
-            dbc.Card([dbc.CardBody([dcc.Graph(id='playtime-bar', style={'height': '450px'})])], className="mb-4"),
-            dbc.Card([dbc.CardBody([dcc.Graph(id='year-line', style={'height': '400px'})])], className="mb-4"),
-            dbc.Card([dbc.CardBody([dcc.Graph(figure=fig4, style={'height': '450px'})])], className="mb-4"),
-
-            # Radio + pie chart
-            dbc.Card([
-                dbc.CardBody([
-                    html.Label("Pie Chart Metric:"),
-                    dcc.RadioItems(
-                        id='pie-radio',
-                        options=[
-                            {'label': 'Average Playtime', 'value': 'avg'},
-                            {'label': 'Total Playtime', 'value': 'sum'},
-                            {'label': 'Game Count', 'value': 'count'}
-                        ],
-                        value='avg',
-                        inline=True,
-                        style={"marginBottom": "1rem"}
-                    ),
-                    dcc.Graph(id='genre-pie', style={'height': '400px'})
-                ])
-            ])
-        ], width=9)
-    ])
-], fluid=True)
-
-# Callback to update bar and line charts based on selected genre
-@app.callback(
-    [Output('playtime-bar', 'figure'),
-     Output('year-line', 'figure')],
-    Input('genre-dropdown', 'value')
-)
-def update_graphs(selected_genre):
-    genre_filter = f"WHERE Genres LIKE '%{selected_genre}%' AND" if selected_genre else "WHERE"
-
-    # Bar chart: Top 10 most-played games
-    playtime_query = f"""
-        SELECT Name, CAST([Average playtime forever] AS FLOAT) AS playtime
-        FROM general_info
-        {genre_filter} [Average playtime forever] IS NOT NULL
-        ORDER BY playtime DESC
-        LIMIT 10
-    """
-    play_df = run_query(playtime_query)
-    fig1 = px.bar(
-        play_df, x="playtime", y="Name", orientation="h", title="Top 10 Games by Average Playtime Forever"
-    ).update_layout(xaxis_title="Play Time in Minutes", yaxis_title="Game", yaxis={'categoryorder': 'total ascending'})
-
-    # Line chart: Games released by year
-    year_query = f"""
-        SELECT [Release date]
-        FROM general_info
-        {genre_filter} [Release date] IS NOT NULL
-    """
-    year_df = run_query(year_query)
-    year_df['Release date'] = pd.to_datetime(year_df['Release date'], errors='coerce')
-    year_df['Year'] = year_df['Release date'].dt.year
-    year_counts = year_df['Year'].dropna().value_counts().sort_index().reset_index()
-    year_counts.columns = ['Year', 'Count']
-
-    fig2 = px.line(year_counts, x='Year', y='Count', title="Games Released by Year")
-
-from dash import Dash, dcc, html, Input, Output, callback
-import dash_bootstrap_components as dbc
-import plotly.express as px
-import pandas as pd
-
-def run_query(query):
-    conn = sqlite3.connect("archive/revenue.sqlite")
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-    return df
-
-
-query = "SELECT * FROM revenue_data"
-
-df['revenue'] = pd.to_numeric(df['revenue'], errors='coerce').astype(float)
-df.dropna(subset=['revenue'], inplace=True)
 ##Update the query names##
 
 free_paid_df = run_query("""SELECT
@@ -164,8 +56,8 @@ FROM (
     SELECT 
         revenue, 
         DATE(SUBSTR(release_date, 7, 4) || '-' || 
-             SUBSTR(release_date, 4, 2) || '-' || 
-             SUBSTR(release_date, 1, 2)) AS formatted_date
+            SUBSTR(release_date, 4, 2) || '-' || 
+            SUBSTR(release_date, 1, 2)) AS formatted_date
     FROM revenue_data
     WHERE release_date IS NOT NULL
 )
@@ -200,12 +92,37 @@ ORDER BY
         WHEN '100+ hrs' THEN 6
     END""")
 
-
 publishers_df = run_query("""SELECT publishers, AVG(revenue) AS avg_revenue, COUNT(*) AS game_count FROM revenue_data GROUP BY publishers ORDER BY avg_revenue DESC""")
 
+top_publishers = run_query("""
+    SELECT Publishers, AVG(CAST([User score] AS FLOAT)) AS avg_score
+    FROM general_info
+    WHERE [User score] IS NOT NULL
+    GROUP BY Publishers
+    ORDER BY avg_score DESC
+    LIMIT 10
+""")
 
+# Data cleaning
+df_3['revenue'] = pd.to_numeric(df['revenue'], errors='coerce').astype(float)
+df_3.dropna(subset=['revenue'], inplace=True)
+
+# Get genre list for dropdown
+genres_df = run_query("SELECT Genres FROM general_info")
+genres_df['Genres'] = genres_df['Genres'].fillna("Unknown")
+genre_list = sorted({g.strip() for genre in genres_df['Genres'] for g in str(genre).split(',')})
+
+# Static chart: Top publishers by user score
+
+fig4 = px.bar(
+    top_publishers, x="Publishers", y="avg_score", title="Top 10 Publishers by Avg User Score"
+).update_layout(
+    xaxis_title="Publisher", yaxis_title="Score", xaxis_tickangle=-45
+)
+
+# Dash app setup
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP],
-           suppress_callback_exceptions=True)
+        suppress_callback_exceptions=True)
 app.title = "Steam Analysis Dashboard"
 
 def create_revenue_dropdown():
@@ -222,27 +139,27 @@ def create_revenue_dropdown():
         placeholder="Select Revenue Range"
     )
 
-
-def filter_by_revenue(df, revenue_range):
+def filter_by_revenue(df_3, revenue_range):
     if revenue_range == '0-200':
-        return df[(df['revenue'] >= 0) & (df['revenue'] <= 200000000)]
+        return df_3[(df_3['revenue'] >= 0) & (df_3['revenue'] <= 200000000)]
     elif revenue_range == '200-400':
-        return df[(df['revenue'] > 200000000) & (df['revenue'] <= 400000000)]
+        return df_3[(df_3['revenue'] > 200000000) & (df_3['revenue'] <= 400000000)]
     elif revenue_range == '400-600':
-        return df[(df['revenue'] > 400000000) & (df['revenue'] <= 600000000)]
+        return df_3[(df_3['revenue'] > 400000000) & (df_3['revenue'] <= 600000000)]
     elif revenue_range == '600-800':
-        return df[(df['revenue'] > 600000000) & (df['revenue'] <= 800000000)]
+        return df_3[(df_3['revenue'] > 600000000) & (df_3['revenue'] <= 800000000)]
     elif revenue_range == '800+':
-        return df[df['revenue'] > 800000000]
+        return df_3[df_3['revenue'] > 800000000]
     else:
-        return df  
+        return df_3  
 
+# Layout
 app.layout = html.Div([
     html.H1("Steam Analysis Dashboard", className="text-center my-4"),
 
     dcc.Tabs(id="tabs-styled-with-props", value='tab-1', children=[
-        dcc.Tab(label='Games', value='tab-1'),
-        dcc.Tab(label='Revenue', value='tab-2'),
+        dcc.Tab(label='Main Dashboard', value='tab-1'),
+        dcc.Tab(label='2024 Revenue Analysis', value='tab-2'),
     ], colors={
         "border": "grey",
         "primary": "white",
@@ -253,65 +170,98 @@ app.layout = html.Div([
 ])
 
 @callback(Output('tabs-content-props', 'children'),
-          Input('tabs-styled-with-props', 'value'))
+        Input('tabs-styled-with-props', 'value'))
 def render_content(tab):
     if tab == 'tab-1':
         return html.Div([
-            html.H3("Games Tab Content Placeholder")
-            # Add the games data and charts here
+            dbc.Row([
+                dbc.Col([
+                html.Label("Filter by Genre:"),
+                dcc.Dropdown(
+                id='genre-dropdown',
+                options=[{'label': g, 'value': g} for g in genre_list],
+                placeholder="Select genre"
+            )
+            ], width=3),
+                dbc.Col([
+                    dbc.Card([dbc.CardBody([dcc.Graph(id='playtime-bar', style={'height': '450px'})])], className="mb-4"),
+                    dbc.Card([dbc.CardBody([dcc.Graph(id='year-line', style={'height': '400px'})])], className="mb-4"),
+                    dbc.Card([dbc.CardBody([dcc.Graph(figure=fig4, style={'height': '450px'})])], className="mb-4"),
+
+                    # Radio + pie chart
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.Label("Pie Chart Metric:"),
+                            dcc.RadioItems(
+                                id='pie-radio',
+                                options=[
+                                    {'label': 'Average Playtime', 'value': 'avg'},
+                                    {'label': 'Total Playtime', 'value': 'sum'},
+                                    {'label': 'Game Count', 'value': 'count'}
+                                ],
+                                value='avg',
+                                inline=True,
+                                style={"marginBottom": "1rem"}
+                            ),
+                            dcc.Graph(id='genre-pie', style={'height': '400px'})
+                        ])
+                    ], className="mb-4")
+                ], width=12)  
+            ])
         ])
     elif tab == 'tab-2':
         return html.Div([
-            dbc.Card([
-                dbc.CardHeader('Free vs Paid to Play Games'),
-                dbc.CardBody([
-                    dcc.Dropdown(
-                        id="dropdown-free-paid",
-                        options=[
-                            {"label": "Average Revenue", "value": "avg_revenue"},
-                            {"label": "Average Copies Sold", "value": "avg_copies_sold"},
-                            {"label": "Average Playtime", "value": "avg_playtime"},
-                            {"label": "Average Review Score", "value": "avg_review_score"},
-                        ],
-                        value="avg_revenue",
-                        clearable=False
-                    ),
-                    dcc.Graph(id="graph-free-paid")
-                ])
-            ], className="mb-4"),
-
-            dbc.Card([
-                dbc.CardHeader("Playtime Analysis"),
-                dbc.CardBody([
-                    dcc.Graph(
-                        figure=px.bar(
-                            playtime_df,
-                            x="playtime_bucket",
-                            y="avg_revenue",
-                            title="Average Revenue by Playtime",
-                            labels={"playtime_bucket": "Playtime", "avg_revenue": "Average Revenue"}
-                        )
-                    )
-                ])
-            ], className="mb-4"),
-
             dbc.Row([
-        dbc.Col([
-            dbc.Card([
-                dbc.CardHeader('Top Revenue Games'),
-                dbc.CardBody([
-                    html.Label(“Filter by Revenue:“),
-                    create_revenue_dropdown(),
-                    dcc.Graph(id=‘revenue-bar’, style={‘height’: ’100%’, ‘width’: ’100%’})
-                ])
-            ], className=“mb-4”, style={‘width’: ’100%’, ‘max-height’: ’100%’})
-        ], width=11),
-        dbc.Col([], width=7),
-    ], className=“d-flex flex-wrap”,
-        justify=“center”),
-
-            
-
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader('Free vs Paid to Play Games'),
+                        dbc.CardBody([
+                            dcc.Dropdown(
+                                id="dropdown-free-paid",
+                                options=[
+                                    {"label": "Average Revenue", "value": "avg_revenue"},
+                                    {"label": "Average Copies Sold", "value": "avg_copies_sold"},
+                                    {"label": "Average Playtime", "value": "avg_playtime"},
+                                    {"label": "Average Review Score", "value": "avg_review_score"},
+                                ],
+                                value="avg_revenue",
+                                clearable=False
+                            ),
+                            dcc.Graph(id="graph-free-paid")
+                        ])
+                    ], className="mb-4", style={'width': '100%', 'max-height': '100%'}),  # Added style
+                ], width=6),  # Adjusted width
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader("Playtime Analysis"),
+                        dbc.CardBody([
+                            dcc.Graph(
+                                id="playtime-analysis-graph",
+                                figure=px.bar(
+                                    playtime_df,
+                                    x="playtime_bucket",
+                                    y="avg_revenue",
+                                    title="Average Revenue by Playtime",
+                                    labels={"playtime_bucket": "Playtime", "avg_revenue": "Average Revenue"}
+                                )
+                            )
+                        ])
+                    ], className="mb-4", style={'width': '100%', 'max-height': '100%'}),  # Added style
+                ], width=6),  # Adjusted width
+            ]),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader('Top Revenue Games'),
+                        dbc.CardBody([
+                            html.Label("Filter by Revenue:"),
+                            create_revenue_dropdown(),
+                            dcc.Graph(id='revenue-bar', style={'height': '100%', 'width': '100%'})
+                        ])
+                    ], className="mb-4", style={'width': '100%', 'max-height': '100%'}),
+                ], width=12),  # Adjusted width
+            ], className="d-flex flex-wrap",
+                justify="center"),
             dbc.Card([
                 dbc.CardHeader("Monthly Average Revenue"),
                 dbc.CardBody([
@@ -329,22 +279,41 @@ def render_content(tab):
                 ])
             ], className="mb-4")
         ])
-
-
+# Callback to update bar and line charts based on selected genre
 @app.callback(
-    Output("graph-free-paid", "figure"),
-    Input("dropdown-free-paid", "value")
+    [Output('playtime-bar', 'figure'),
+    Output('year-line', 'figure')],
+    Input('genre-dropdown', 'value')
 )
-def update_free_paid(metric):
-    fig = px.bar(
-        free_paid_df,
-        x="price_category",
-        y=metric,
-        color="price_category",
-        labels={"price_category": "Game Type", metric: metric.replace("_", " ").title()},
-        title=f"Free vs Paid — {metric.replace('_', ' ').title()}"
-    )
-    return fig
+def update_graphs(selected_genre):
+    genre_filter = f"WHERE Genres LIKE '%{selected_genre}%' AND" if selected_genre else "WHERE"
+
+    # Bar chart: Top 10 most-played games
+    playtime_query = f"""
+        SELECT Name, CAST([Average playtime forever] AS FLOAT) AS playtime
+        FROM general_info
+        {genre_filter} [Average playtime forever] IS NOT NULL
+        ORDER BY playtime DESC
+        LIMIT 10
+    """
+    play_df = run_query(playtime_query)
+    fig1 = px.bar(
+        play_df, x="playtime", y="Name", orientation="h", title="Top 10 Games by Average Playtime Forever"
+    ).update_layout(xaxis_title="Play Time in Minutes", yaxis_title="Game", yaxis={'categoryorder': 'total ascending'})
+
+    # Line chart: Games released by year
+    year_query = f"""
+        SELECT [Release date]
+        FROM general_info
+        {genre_filter} [Release date] IS NOT NULL
+    """
+    year_df = run_query(year_query)
+    year_df['Release date'] = pd.to_datetime(year_df['Release date'], errors='coerce')
+    year_df['Year'] = year_df['Release date'].dt.year
+    year_counts = year_df['Year'].dropna().value_counts().sort_index().reset_index()
+    year_counts.columns = ['Year', 'Count']
+
+    fig2 = px.line(year_counts, x='Year', y='Count', title="Games Released by Year")
 
 # CALLBACK: Update two graphs based on selected genre
 @app.callback(
@@ -387,7 +356,6 @@ def update_graphs(selected_genre):
 
     return fig1, fig2
 
-
 # Callback to update pie chart based on selected metric
 @app.callback(
     Output('genre-pie', 'figure'),
@@ -421,9 +389,21 @@ def update_pie_chart(metric):
 
     return px.pie(top_10, names="Genre", values="Value", title=title, hole=0.3)
 
-# Run app
-if __name__ == '__main__':
-    app.run(debug=True)
+#tab-2 config
+@app.callback(
+    Output("graph-free-paid", "figure"),
+    Input("dropdown-free-paid", "value")
+)
+def update_free_paid(metric):
+    fig = px.bar(
+        free_paid_df,
+        x="price_category",
+        y=metric,
+        color="price_category",
+        labels={"price_category": "Game Type", metric: metric.replace("_", " ").title()},
+        title=f"Free vs Paid — {metric.replace('_', ' ').title()}"
+    )
+    return fig
 
 # CALLBACK: Update revenue bar chart
 @app.callback(
@@ -431,7 +411,7 @@ if __name__ == '__main__':
     Input('revenue-dropdown', 'value')
 )
 def update_revenue_bar(selected_revenue):
-    filtered_df = filter_by_revenue(df, selected_revenue)
+    filtered_df = filter_by_revenue(df_3, selected_revenue)
     top10_revenue = filtered_df.sort_values('revenue', ascending=False).head(10)
     fig7 = px.bar(top10_revenue, x='revenue', y='name',  orientation='h', title='Top 10 Games by Revenue',
             labels={'revenue': 'Revenue', 'name': 'Game Title'},
@@ -440,8 +420,7 @@ def update_revenue_bar(selected_revenue):
                     height=600,)
     return fig7
 
-
-# Run the app in Jupyter Notebook (use "external" to see it in a  browser or "inline" to run it within the notbook)vbnbm./
+# Run the app
 if __name__ == '__main__':
     app.run(debug=True)
 
