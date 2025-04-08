@@ -1,6 +1,6 @@
 import sqlite3
 import pandas as pd
-from dash import Dash, dcc, html, Input, Output
+from dash import Dash, dcc, html, Input, Output, callback
 import dash_bootstrap_components as dbc
 import plotly.express as px
 
@@ -81,62 +81,85 @@ ORDER BY
 
 publishers_df = run_query("""SELECT publishers, AVG(revenue) AS avg_revenue, COUNT(*) AS game_count FROM revenue_data GROUP BY publishers ORDER BY avg_revenue DESC""")
 
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-app.title = "Steam Revenue Dashboard"
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP],
+           suppress_callback_exceptions=True)
+app.title = "Steam Analysis Dashboard"
 
-app.layout = dbc.Container([
-    html.H1("Steam Revenue Dashboard", className="text-center my-4"),
+app.layout = html.Div([
+    html.H1("Steam Analysis Dashboard", className="text-center my-4"),
 
-    dbc.Card([
-        dbc.CardHeader('Free vs Paid to Play Games'),
-        dbc.CardBody([
-            dcc.Dropdown(
-                id="dropdown-free-paid",
-                options=[
-                    {"label": "Average Revenue", "value": "avg_revenue"},
-                    {"label": "Average Copies Sold", "value": "avg_copies_sold"},
-                    {"label": "Average Playtime", "value": "avg_playtime"},
-                    {"label": "Average Review Score", "value": "avg_review_score"},
-                ],
-                value="avg_revenue",
-                clearable=False
-            ),
-            dcc.Graph(id="graph-free-paid")
+    dcc.Tabs(id="tabs-styled-with-props", value='tab-1', children=[
+        dcc.Tab(label='Games', value='tab-1'),
+        dcc.Tab(label='Revenue', value='tab-2'),
+    ], colors={
+        "border": "grey",
+        "primary": "white",
+        "background": "grey"
+    }),
+
+    html.Div(id='tabs-content-props')
+])
+
+@callback(Output('tabs-content-props', 'children'),
+          Input('tabs-styled-with-props', 'value'))
+def render_content(tab):
+    if tab == 'tab-1':
+        return html.Div([
+            html.H3("Games Tab Content Placeholder")
+            # Add the games data and charts here
         ])
-    ], className="mb-4"),
+    elif tab == 'tab-2':
+        return html.Div([
+            dbc.Card([
+                dbc.CardHeader('Free vs Paid to Play Games'),
+                dbc.CardBody([
+                    dcc.Dropdown(
+                        id="dropdown-free-paid",
+                        options=[
+                            {"label": "Average Revenue", "value": "avg_revenue"},
+                            {"label": "Average Copies Sold", "value": "avg_copies_sold"},
+                            {"label": "Average Playtime", "value": "avg_playtime"},
+                            {"label": "Average Review Score", "value": "avg_review_score"},
+                        ],
+                        value="avg_revenue",
+                        clearable=False
+                    ),
+                    dcc.Graph(id="graph-free-paid")
+                ])
+            ], className="mb-4"),
 
-    dbc.Card([
-        dbc.CardHeader("Playtime Analysis"),
-        dbc.CardBody([
-            dcc.Graph(
-                figure=px.bar(
-                    playtime_df,
-                    x="playtime_bucket",
-                    y="avg_revenue",
-                    title="Average Revenue by Playtime",
-                    labels={"playtime_bucket": "Playtime", "avg_revenue": "Average Revenue"}
-                )
-            )
-        ])
-    ], className="mb-4"),
+            dbc.Card([
+                dbc.CardHeader("Playtime Analysis"),
+                dbc.CardBody([
+                    dcc.Graph(
+                        figure=px.bar(
+                            playtime_df,
+                            x="playtime_bucket",
+                            y="avg_revenue",
+                            title="Average Revenue by Playtime",
+                            labels={"playtime_bucket": "Playtime", "avg_revenue": "Average Revenue"}
+                        )
+                    )
+                ])
+            ], className="mb-4"),
 
-    dbc.Card([
-        dbc.CardHeader("Monthly Average Revenue"),
-        dbc.CardBody([
-            dcc.Graph(
-                id="graph-monthly-revenue",
-                figure=px.line(
-                    revenue_df,
-                    x="release_month",
-                    y="avg_monthly_revenue",
-                    markers=True,
-                    title="Average Monthly Revenue",
-                    labels={"release_month": "Month", "avg_revenue": "Average Revenue"}
-                )
-            )
+            dbc.Card([
+                dbc.CardHeader("Monthly Average Revenue"),
+                dbc.CardBody([
+                    dcc.Graph(
+                        id="graph-monthly-revenue",
+                        figure=px.line(
+                            revenue_df,
+                            x="release_month",
+                            y="avg_monthly_revenue",
+                            markers=True,
+                            title="Average Monthly Revenue",
+                            labels={"release_month": "Month", "avg_revenue": "Average Revenue"}
+                        )
+                    )
+                ])
+            ], className="mb-4")
         ])
-    ], className="mb-4")
-], fluid=True)
 
 
 @app.callback(
@@ -154,5 +177,6 @@ def update_free_paid(metric):
     )
     return fig
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     app.run(debug=True)
