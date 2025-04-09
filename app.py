@@ -7,18 +7,13 @@ import plotly.express as px
 
 # Database Query Functions
 def run_steam_query(query):
-    with sqlite3.connect("Steam_Games_db.sqlite") as conn:
+    with sqlite3.connect("archive/Steam_Games_db.sqlite") as conn:
         return pd.read_sql_query(query, conn)
 
 def run_revenue_query(query):
     with sqlite3.connect("archive/revenue.sqlite") as conn:
         return pd.read_sql_query(query, conn)
 
-sqlite_file_3 = 'revenue.sqlite'
-conn_3 = sqlite3.connect(sqlite_file_3)
-query_3 = "SELECT * FROM revenue_data"
-df_3 = pd.read_sql_query(query_3, conn_3)
-conn_3.close()
 
 # Data Preparation
 # Top 10 publishers by user score
@@ -52,6 +47,8 @@ SELECT
 FROM revenue_data
 GROUP BY price_category
 """)
+
+query_3 = run_revenue_query ("""SELECT * FROM revenue_data""")
 
 # Monthly revenue summary
 revenue_df = run_revenue_query("""
